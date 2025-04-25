@@ -16,6 +16,8 @@ const validateBook = [
   body('condition').trim().notEmpty(),
   body('description').trim().notEmpty(),
   body('image').trim().notEmpty().isString(),
+  body('contact.app').trim().notEmpty().isString(),
+  body('contact.id').trim().notEmpty(),
 ];
 
 // CREATE
@@ -27,7 +29,7 @@ bookRoutes.post('/create', authenticateUser, validateBook, async (req, res) => {
     }
 
     const db = getDb();
-    const { title, author, genre, condition, description, image } = req.body;
+    const { title, author, genre, condition, description, image, contact } = req.body;
 
     const sanitizedData = {
       title: sanitize(title),
@@ -35,6 +37,10 @@ bookRoutes.post('/create', authenticateUser, validateBook, async (req, res) => {
       genre: sanitize(genre),
       condition: sanitize(condition),
       description: sanitize(description),
+      contact: {
+        app: sanitize(contact.app),
+        id: sanitize(contact.id),
+      },
       userId: new ObjectId(req.user._id),
       createdAt: new Date(),
       likes: 0,
@@ -102,13 +108,29 @@ bookRoutes.put('/my-books/:bookId', authenticateUser, async (req, res) => {
     const userId = typeof req.user._id === 'string' ? new ObjectId(req.user._id) : req.user._id;
     const bookIdObj = new ObjectId(bookId);
 
+    // Sanitize top-level fields
+    const sanitizedUpdate = {};
+    if (updateData.title) sanitizedUpdate.title = sanitize(updateData.title);
+    if (updateData.author) sanitizedUpdate.author = sanitize(updateData.author);
+    if (updateData.genre) sanitizedUpdate.genre = sanitize(updateData.genre);
+    if (updateData.condition) sanitizedUpdate.condition = sanitize(updateData.condition);
+    if (updateData.description) sanitizedUpdate.description = sanitize(updateData.description);
+
+    // Sanitize nested contact fields
+    if (updateData.contact) {
+      sanitizedUpdate.contact = {
+        app: sanitize(updateData.contact.app || ''),
+        id: sanitize(updateData.contact.id || ''),
+      };
+    }
+
     const result = await db.collection('books').findOneAndUpdate(
       { _id: bookIdObj, userId: userId },
-      { $set: updateData },
+      { $set: sanitizedUpdate },
       { returnDocument: 'after' }
     );
 
-    if (result.value === null) {
+    if (!result.value) {
       return res.status(404).json({
         success: false,
         error: 'Book not found or access denied',
