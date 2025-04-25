@@ -108,29 +108,13 @@ bookRoutes.put('/my-books/:bookId', authenticateUser, async (req, res) => {
     const userId = typeof req.user._id === 'string' ? new ObjectId(req.user._id) : req.user._id;
     const bookIdObj = new ObjectId(bookId);
 
-    // Sanitize top-level fields
-    const sanitizedUpdate = {};
-    if (updateData.title) sanitizedUpdate.title = sanitize(updateData.title);
-    if (updateData.author) sanitizedUpdate.author = sanitize(updateData.author);
-    if (updateData.genre) sanitizedUpdate.genre = sanitize(updateData.genre);
-    if (updateData.condition) sanitizedUpdate.condition = sanitize(updateData.condition);
-    if (updateData.description) sanitizedUpdate.description = sanitize(updateData.description);
-
-    // Sanitize nested contact fields
-    if (updateData.contact) {
-      sanitizedUpdate.contact = {
-        app: sanitize(updateData.contact.app || ''),
-        id: sanitize(updateData.contact.id || ''),
-      };
-    }
-
     const result = await db.collection('books').findOneAndUpdate(
       { _id: bookIdObj, userId: userId },
-      { $set: sanitizedUpdate },
+      { $set: updateData },
       { returnDocument: 'after' }
     );
 
-    if (!result.value) {
+    if (result.value === null) {
       return res.status(404).json({
         success: false,
         error: 'Book not found or access denied',
